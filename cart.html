@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giỏ hàng</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .product { border-bottom: 1px solid #ccc; padding: 10px 0; display: flex; align-items: center; justify-content: space-between; }
+        .product h4, .product p { margin: 0; }
+        .remove-button { margin-left: 20px; }
+        .cart-summary { border: 1px solid #ddd; padding: 20px; }
+        .cart-summary h5.total, .cart-summary h5.payment-method { margin-top: 30px; }
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            z-index: 1000;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        .card { border-width: 2px; }
+        .form-control { border-width: 2px; }
+        .cart-summary h4, .cart-summary h5 { margin-bottom: 20px; }
+        .cart-summary div.product { display: flex; justify-content: space-between; align-items: center; }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Thông tin đơn hàng</h1>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Chi tiết thanh toán</div>
+                    <div class="card-body">
+                        <form id="checkout-form">
+                            <div class="form-group">
+                                <label for="name">Họ tên *</label>
+                                <input type="text" id="name" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="phone">Điện thoại *</label>
+                                <input type="text" id="phone" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="email">Email</label>
+                                <input type="email" id="email" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="address">Địa chỉ</label>
+                                <input type="text" id="address" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="notes">Ghi chú khác</label>
+                                <textarea id="notes" class="form-control"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Xác nhận đơn hàng</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="cart-summary">
+                    <h4>Đơn hàng của bạn</h4>
+                    <div id="cart-items"></div>
+                    <h5 class="total">Tổng cộng: $<span id="total-price">0.00</span></h5>
+                    <h5 class="payment-method">Chọn hình thức thanh toán:</h5>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="paymentMethod" id="visa" value="visa">
+                        <label class="form-check-label" for="visa">
+                            Thanh toán thẻ Visa/Master/JCB (Giảm đến 20%)
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="paymentMethod" id="atm" value="atm">
+                        <label class="form-check-label" for="atm">
+                            Thanh toán bằng thẻ ATM (Giảm đến 20%)
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="paymentMethod" id="installment" value="installment">
+                        <label class="form-check-label" for="installment">
+                            Thanh toán trả góp bằng thẻ Visa/Master/JCB
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popup -->
+    <div class="popup-overlay"></div>
+    <div class="popup" id="confirmation-popup">
+        <h2>Xác nhận đơn hàng thành công</h2>
+        <p id="confirmation-name"></p>
+        <p id="confirmation-address"></p>
+        <p id="confirmation-email"></p>
+        <p id="confirmation-phone"></p>
+        <p id="confirmation-notes"></p>
+        <p id="confirmation-total"></p>
+        <button id="close-popup" class="btn btn-secondary">Đóng</button>
+    </div>
+
+    <script>
+        function addToCart(name, price) {
+            var cart = JSON.parse(localStorage.getItem('cart')) || [];
+            var product = cart.find(p => p.name === name);
+            
+            if (product) {
+                product.quantity += 1;
+            } else {
+                cart.push({ name: name, price: price, quantity: 1 });
+            }
+            
+            localStorage.setItem('cart', JSON.stringify(cart));
+            updateCartDisplay();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var cart = JSON.parse(localStorage.getItem('cart')) || [];
+            var cartItemsDiv = document.getElementById('cart-items');
+            var totalPriceSpan = document.getElementById('total-price');
+
+            function updateCartDisplay() {
+                cartItemsDiv.innerHTML = '';
+                var totalPrice = 0;
+
+                cart.forEach(function (product, index) {
+                    var productDiv = document.createElement('div');
+                    productDiv.className = 'product';
+
+                    var productName = document.createElement('h4');
+                    productName.textContent = product.name;
+                    productDiv.appendChild(productName);
+
+                    var productPrice = document.createElement('p');
+                    productPrice.textContent = '$' + (product.price * product.quantity).toFixed(2);
+                    productDiv.appendChild(productPrice);
+
+                    var productQuantity = document.createElement('p');
+                    productQuantity.textContent = 'Số lượng: ' + product.quantity;
+                    productDiv.appendChild(productQuantity);
+
+                    var removeButton = document.createElement('button');
+                    removeButton.textContent = 'Xóa';
+                    removeButton.className = 'btn btn-danger remove-button';
+                    removeButton.addEventListener('click', function () {
+                        cart.splice(index, 1);
+                        localStorage.setItem('cart', JSON.stringify(cart));
+                        updateCartDisplay();
+                    });
+                    productDiv.appendChild(removeButton);
+
+                    cartItemsDiv.appendChild(productDiv);
+                    totalPrice += product.price * product.quantity;
+                });
+
+                totalPriceSpan.textContent = totalPrice.toFixed(2);
+            }
+
+            updateCartDisplay();
+
+            document.getElementById('checkout-form').addEventListener('submit', function (e) {
+                e.preventDefault();
+                var name = document.getElementById('name').value;
+                var address = document.getElementById('address').value;
+                var email = document.getElementById('email').value;
+                var phone = document.getElementById('phone').value;
+                var notes = document.getElementById('notes').value;
+                var total = document.getElementById('total-price').textContent;
+
+                document.getElementById('confirmation-name').textContent = 'Họ và tên: ' + name;
+                document.getElementById('confirmation-address').textContent = 'Địa chỉ: ' + address;
+                document.getElementById('confirmation-email').textContent = 'Email: ' + email;
+                document.getElementById('confirmation-phone').textContent = 'Số điện thoại: ' + phone;
+                document.getElementById('confirmation-notes').textContent = 'Ghi chú: ' + notes;
+                document.getElementById('confirmation-total').textContent = 'Tổng cộng: $' + total;
+
+                document.querySelector('.popup-overlay').style.display = 'block';
+                document.getElementById('confirmation-popup').style.display = 'block';
+            });
+
+            document.getElementById('close-popup').addEventListener('click', function () {
+                document.querySelector('.popup-overlay').style.display = 'none';
+                document.getElementById('confirmation-popup').style.display = 'none';
+            });
+        });
+    </script>
+</body
